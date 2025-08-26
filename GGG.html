@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>GlowUp Tracker</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  /* ------- LIGHT, MOTIVATING LOOK ------- */
+  :root{
+    --primary:#6c63ff;
+    --accent:#22c55e;
+    --bg1:#fdfcfb;
+    --bg2:#f3f7ff;
+    --card:#ffffff;
+    --text:#1f2937;
+    --muted:#6b7280;
+    --danger:#ef4444;
+    --warning:#f59e0b;
+  }
+  html,body{margin:0;padding:0;background: radial-gradient(1200px 700px at 10% 0%, var(--bg2), var(--bg1)) fixed; color:var(--text); font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, Arial; }
+  header{
+    padding:22px 16px; text-align:center; color:#fff;
+    background: linear-gradient(135deg, var(--primary), #8a7bff);
+    border-bottom-left-radius:20px;border-bottom-right-radius:20px;
+    box-shadow: 0 10px 30px rgba(108,99,255,.35);
+  }
+  header h1{margin:0 0 6px; font-size:26px; letter-spacing:.3px;}
+  #clock{opacity:.95; font-weight:600}
+  .wrap{max-width:980px; margin:24px auto; padding:0 16px 40px;}
+  .row{display:grid; gap:18px; grid-template-columns:1fr}
+  @media(min-width:900px){ .row{grid-template-columns:1fr 1fr} }
+  .card{
+    background:var(--card); border-radius:16px; padding:18px 18px 16px;
+    box-shadow:0 10px 30px rgba(0,0,0,.06);
+  }
+  .card h2{margin:0 0 12px; font-size:18px; color:#111827}
+  .hint{color:var(--muted); font-size:.9rem; margin:6px 0 12px}
+  /* check items */
+  .task{display:flex; gap:10px; align-items:flex-start; padding:8px 10px; border-radius:10px;}
+  .task:hover{background:#f6f7fb}
+  .task input{transform:scale(1.15); margin-top:2px}
+  /* progress bar */
+  .progress{
+    background:#e5e7eb; border-radius:100px; height:14px; overflow:hidden; position:relative;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.06);
+  }
+  .bar{height:100%; width:0%; background:var(--danger); transition:width .25s ease, background .25s ease}
+  .progress-row{display:flex; align-items:center; gap:12px}
+  .progress-pct{min-width:56px; font-weight:700}
+  /* history */
+  .history-item{
+    display:flex; justify-content:space-between; gap:8px; align-items:center;
+    padding:10px 12px; background:#f8fafc; border-radius:12px; margin:8px 0;
+  }
+  .chip{font-size:.82rem; padding:4px 8px; border-radius:999px; background:#eef2ff; color:#4338ca; font-weight:600}
+  .btn{
+    border:0; border-radius:10px; padding:10px 14px; cursor:pointer; font-weight:700;
+    color:#fff; background:var(--primary); box-shadow:0 6px 16px rgba(108,99,255,.25);
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn-ghost{background:#eef2ff; color:#3730a3}
+  .btn-danger{background:var(--danger)}
+  .btn-muted{background:#e5e7eb; color:#111827}
+  .btn-accent{background:var(--accent)}
+  .grid-2{display:grid; gap:12px; grid-template-columns:1fr 1fr}
+  .note{width:100%; min-height:100px; border-radius:12px; border:1px solid #e5e7eb; padding:10px 12px; font-size:14px}
+  .sub{color:var(--muted); font-size:.92rem}
+  .quote{font-style:italic; color:#334155; background:#f1f5f9; padding:10px 12px; border-radius:12px}
+  /* weekly mini chart */
+  .bars{display:flex; gap:10px; align-items:flex-end; height:120px; margin-top:8px}
+  .barCol{flex:1; background:linear-gradient(180deg,#c7d2fe,#e0e7ff); border-radius:8px 8px 4px 4px; position:relative; overflow:hidden}
+  .barCol span{position:absolute; bottom:4px; left:50%; transform:translateX(-50%); font-size:10px; color:#111827; font-weight:700}
+  .barCol::after{ /* filled part */ content:""; position:absolute; left:0; right:0; bottom:0; height:0%; background:linear-gradient(180deg,#60a5fa,#22c55e)}
+  .barCol[data-val]::after{height:attr(data-val percentage)}
+  .barLabel{font-size:11px; color:#475569; text-align:center; margin-top:4px}
+  .footer-note{margin-top:8px; color:#475569; font-size:.9rem}
+  .divider{height:1px; background:#e5e7eb; margin:12px 0}
+  .pill{display:inline-block; padding:4px 8px; border-radius:999px; background:#ecfeff; color:#0e7490; font-weight:700; font-size:.8rem}
+</style>
+</head>
+<body>
+  <header>
+    <h1>GlowUp Daily Tracker ✨</h1>
+    <div id="clock">Loading…</div>
+  </header>
+
+  <div class="wrap">
+    <!-- PROGRESS -->
+    <div class="card">
+      <h2>Today’s Progress</h2>
+      <div class="progress-row">
+        <div class="progress" style="flex:1"><div id="bar" class="bar"></div></div>
+        <div id="pct" class="progress-pct">0%</div>
+        <button id="saveBtn" class="btn btn-accent">Save Today</button>
+        <button id="clearBtn" class="btn btn-muted">Clear Checks</button>
+      </div>
+      <div class="hint">Green = 71–100%, Yellow = 31–70%, Red = 0–30%</div>
+    </div>
+
+    <div class="row">
+      <!-- EXERCISE -->
+      <div class="card">
+        <h2>🌅 Morning Exercise (6:00–7:00 AM)</h2>
+        <div class="sub">Warm-up (6:00–6:10):</div>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="ex"> Neck rolls — 2×30s</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="ex"> Arm circles — 2×20</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="ex"> Leg swings — 2×15/leg</label>
+        <div class="sub" style="margin-top:6px">Main set (6:10–6:50):</div>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="ex"> Squats — 3×20</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="ex"> Push-ups — 3×15</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="ex"> Crunches — 3×20</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="ex"> Plank — 3×60s</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="ex"> 10-min brisk walk/jog</label>
+        <div class="sub" style="margin-top:6px">Cool-down (6:50–7:00): hamstrings, quads, chest — gentle 60s each</div>
+      </div>
+
+      <!-- SKINCARE -->
+      <div class="card">
+        <h2>🧴 Skincare (AM/PM)</h2>
+        <div class="sub">Morning (after workout):</div>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="skin"> Cleanser: **Kojie San Kojic Acid Soap** (face 20–30s, body ok)</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="skin"> Moisturizer: **Celeteque Hydration Facial Moisturizer**</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="skin"> Sunscreen: **Belo SunExpert SPF50** (2 fingers)</label>
+        <div class="sub" style="margin-top:6px">Night:</div>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="skin"> Cleanser: Kojic (rinse well)</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="skin"> Toner: **Celeteque Alcohol-Free Toner**</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="skin"> Serum: **Luxe Organix 10% Niacinamide**</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="skin"> Moisturizer: Celeteque Hydration</label>
+      </div>
+    </div>
+
+    <div class="row">
+      <!-- MEALS -->
+      <div class="card">
+        <h2>🍽️ Meals & Hydration</h2>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="meal"> Breakfast (7:00–7:30) — 2 boiled eggs + oatmeal + banana</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="meal"> Lunch (12:00) — Grilled chicken + 1 cup brown rice + veggies</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="meal"> Snack (3:30) — Apple + 10 almonds</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="meal"> Dinner (7:00) — Steamed fish + ½ cup rice + salad</label>
+        <label class="task"><input class="task-cb" type="checkbox" data-group="meal"> Hydration — ≥ 8 glasses water</label>
+        <div class="divider"></div>
+        <button id="printBtn" class="btn btn-ghost">🖨️ Print / Save PDF</button>
+      </div>
+
+      <!-- NOTES + QUOTE -->
+      <div class="card">
+        <h2>📝 Notes / Journal</h2>
+        <textarea id="note" class="note" placeholder="Today I feel... wins, cravings, skin changes, etc."></textarea>
+        <div class="grid-2">
+          <button id="saveNote" class="btn">Save Note</button>
+          <button id="clearNote" class="btn btn-muted">Clear</button>
+        </div>
+        <div class="divider"></div>
+        <div class="quote" id="quote">Loading motivation…</div>
+      </div>
+    </div>
+
+    <!-- WEEKLY SUMMARY -->
+    <div class="card">
+      <h2>📊 Weekly Summary</h2>
+      <div class="sub">Shows last 7 days completion and your current streak.</div>
+      <div id="weeklyStats" class="pill">—</div>
+      <div class="bars" id="bars"></div>
+      <div class="grid-2" style="margin-top:10px">
+        <div><span id="weekPct" class="chip">0% avg</span></div>
+        <div style="text-align:right"><span id="streak" class="chip">🔥 0-day streak</span></div>
+      </div>
+      <div class="footer-note">A “good day” = ≥ 70% completion.</div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="card">
+      <h2>📖 History</h2>
+      <div class="sub">Your saved days (kept only on your device).</div>
+      <div id="history"></div>
+      <div class="grid-2" style="margin-top:8px">
+        <button id="clearHistory" class="btn btn-danger">Clear All History</button>
+        <button id="installTip" class="btn btn-ghost">📱 How to Install</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ---------- TIME (Asia/Manila) ---------- */
+function nowManila(){
+  const s = new Date().toLocaleString('en-PH',{timeZone:'Asia/Manila'});
+  return new Date(s);
+}
+function fmt(dt, opts){ return dt.toLocaleString('en-PH', opts || {dateStyle:'full', timeStyle:'medium'}); }
+function tickClock(){ document.getElementById('clock').textContent = fmt(nowManila(), {dateStyle:'full', timeStyle:'short'}); }
+setInterval(tickClock, 1000); tickClock();
+
+/* ---------- QUOTES ---------- */
+const QUOTES = [
+  "Small steps today, big glow tomorrow.",
+  "Discipline beats motivation—show up for you.",
+  "Drink water, move your body, protect your skin.",
+  "Be patient. Consistency makes it obvious.",
+  "You don’t need perfect—just progress."
+];
+function setQuote(){ document.getElementById('quote').textContent = QUOTES[Math.floor(Math.random()*QUOTES.length)]; }
+setQuote();
+
+/* ---------- CHECKBOXES + PROGRESS BAR ---------- */
+const cbs = () => Array.from(document.querySelectorAll('.task-cb'));
+function updateProgress(){
+  const total = cbs().length;
+  const done = cbs().filter(cb=>cb.checked).length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  const bar = document.getElementById('bar');
+  bar.style.width = pct + '%';
+  bar.style.background = pct>=71? 'linear-gradient(90deg,#34d399,#22c55e)' : (pct>=31? '#f59e0b' : '#ef4444');
+  document.getElementById('pct').textContent = pct + '%';
+  return {done,total,pct};
+}
+cbs().forEach(cb=>cb.addEventListener('change', updateProgress));
+updateProgress();
+
+/* ---------- SAVE TODAY / HISTORY ---------- */
+function storageGet(k, def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def }catch(e){return def} }
+function storageSet(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
+
+function saveToday(){
+  const m = nowManila();
+  const iso = m.toISOString().slice(0,10); // still OK as label key
+  const displayTime = fmt(m, {dateStyle:'medium', timeStyle:'short'});
+  const {done,total,pct} = updateProgress();
+  const item = {
+    isoDate: iso, time: displayTime, done, total, pct,
+    groups: {
+      ex: cbs().filter(x=>x.dataset.group==='ex' && x.checked).length,
+      skin: cbs().filter(x=>x.dataset.group==='skin' && x.checked).length,
+      meal: cbs().filter(x=>x.dataset.group==='meal' && x.checked).length
+    }
+  };
+  const hist = storageGet('glowup_history', []);
+  // replace same day entry (latest wins)
+  const idx = hist.findIndex(h=>h.isoDate===iso);
+  if(idx>-1) hist.splice(idx,1,item); else hist.push(item);
+  storageSet('glowup_history', hist);
+  renderHistory(); renderWeekly();
+  alert('Saved! 🎉');
+}
+
+function renderHistory(){
+  const wrap = document.getElementById('history');
+  wrap.innerHTML = '';
+  const hist = storageGet('glowup_history', []).sort((a,b)=>a.isoDate<b.isoDate?1:-1);
+  if(!hist.length){ wrap.innerHTML = '<div class="sub">No saved days yet. Hit “Save Today”.</div>'; return; }
+  hist.forEach((h,i)=>{
+    const row = document.createElement('div'); row.className='history-item';
+    row.innerHTML = `
+      <div>
+        <div><strong>${h.isoDate}</strong> • ${h.time}</div>
+        <div class="sub">Completed <strong>${h.done}/${h.total}</strong> • <span class="pill">${h.pct}%</span></div>
+      </div>
+      <button class="btn btn-danger" data-i="${i}">Delete</button>
+    `;
+    row.querySelector('button').onclick = ()=>{
+      const list = storageGet('glowup_history', []);
+      list.splice(i,1); storageSet('glowup_history', list);
+      renderHistory(); renderWeekly();
+    };
+    wrap.appendChild(row);
+  });
+}
+
+/* ---------- WEEKLY SUMMARY (last 7 calendar days) ---------- */
+function getLast7Labels(){
+  const labels=[]; const today = nowManila();
+  for(let i=6;i>=0;i--){
+    const d = new Date(today); d.setDate(d.getDate()-i);
+    labels.push({iso: d.toISOString().slice(0,10), name: d.toLocaleDateString('en-PH',{weekday:'short'})});
+  }
+  return labels;
+}
+function renderWeekly(){
+  const bars = document.getElementById('bars'); bars.innerHTML='';
+  const hist = storageGet('glowup_history', []);
+  const map = {}; hist.forEach(h=>map[h.isoDate]=h.pct);
+  const labels = getLast7Labels();
+  let sum=0, count=0, goodDays=0;
+  labels.forEach(l=>{
+    const pct = map[l.iso] ?? 0;
+    sum+=pct; count++;
+    if(pct>=70) goodDays++;
+    const col = document.createElement('div');
+    col.className='barCol'; col.setAttribute('data-val', pct+'%');
+    col.style.setProperty('--val', pct+'%');
+    col.style.height='100%';
+    col.innerHTML = `<span>${pct}%</span>`;
+    // Fill height via inline style
+    col.style.setProperty('--h', pct+'%');
+    col.style.position='relative';
+    col.style.overflow='hidden';
+    // emulate fill
+    const fill = document.createElement('div');
+    fill.style.position='absolute'; fill.style.left=0; fill.style.right=0; fill.style.bottom=0;
+    fill.style.height=pct+'%'; fill.style.background = pct>=71? 'linear-gradient(180deg,#34d399,#22c55e)' : (pct>=31? '#f59e0b' : '#ef4444');
+    col.appendChild(fill);
+    const lab = document.createElement('div'); lab.className='barLabel'; lab.textContent=l.name;
+    const colWrap = document.createElement('div'); colWrap.style.flex='1';
+    colWrap.appendChild(col); colWrap.appendChild(lab);
+    bars.appendChild(colWrap);
+  });
+  const avg = Math.round(sum/(count||1));
+  document.getElementById('weekPct').textContent = `Avg: ${avg}%`;
+  // Streak (consecutive recent days with >=70%)
+  let streak=0;
+  const labelsDesc = getLast7Labels().reverse(); // newest first
+  for(const l of labelsDesc){
+    const pct = map[l.iso] ?? 0;
+    if(pct>=70) streak++; else break;
+  }
+  document.getElementById('streak').textContent = `🔥 ${streak}-day streak`;
+  document.getElementById('weeklyStats').textContent = `${labels[0].iso} → ${labels.at(-1).iso}`;
+}
+
+/* ---------- NOTES ---------- */
+function saveNote(){ 
+  const val = document.getElementById('note').value.trim();
+  if(!val) return;
+  const notes = storageGet('glowup_notes', []);
+  notes.push({time: fmt(nowManila(), {dateStyle:'medium', timeStyle:'short'}), text: val});
+  storageSet('glowup_notes', notes);
+  document.getElementById('note').value='';
+  alert('Note saved!');
+}
+function clearNote(){ document.getElementById('note').value=''; }
+
+/* ---------- PRINT / PDF ---------- */
+function printPDF(){ window.print(); }
+
+/* ---------- INSTALL TIPS ---------- */
+function installTip(){
+  alert(
+`Add to Home Screen:
+• iPhone (Safari): Share ▸ Add to Home Screen
+• Android (Chrome): ⋮ menu ▸ Add to Home screen
+
+Optional offline mode: put this file with manifest.json, sw.js, icon.png in the same folder and open glowup.html via https or a simple local server.`
+  );
+}
+
+/* ---------- CLEAR ---------- */
+function clearChecks(){ cbs().forEach(cb=>cb.checked=false); updateProgress(); }
+function clearHistory(){ if(confirm('Delete ALL history?')){ localStorage.removeItem('glowup_history'); renderHistory(); renderWeekly(); } }
+
+/* ---------- HOOKS ---------- */
+document.getElementById('saveBtn').onclick = saveToday;
+document.getElementById('clearBtn').onclick = clearChecks;
+document.getElementById('saveNote').onclick = saveNote;
+document.getElementById('clearNote').onclick = clearNote;
+document.getElementById('printBtn').onclick = printPDF;
+document.getElementById('clearHistory').onclick = clearHistory;
+document.getElementById('installTip').onclick = installTip;
+
+/* first render */
+renderHistory(); renderWeekly();
+
+/* ---------- SERVICE WORKER (if available) ---------- */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
